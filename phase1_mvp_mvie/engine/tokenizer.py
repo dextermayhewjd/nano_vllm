@@ -1,10 +1,11 @@
 from transformers import AutoTokenizer
+from engine.config_loader import load_model_path
 import torch
 class Tokenizer:
     def __init__(self, model_name:str):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        
-        
+        model_path = load_model_path(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path,
+                                                       local_files_only=True)
     def encode(
         self, 
         prompt: str,

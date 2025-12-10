@@ -3,8 +3,8 @@ from engine.config_loader import load_model_path
 
 def main():
     # model_path = "/home/dexterding/models/Qwen2-7B" 不硬编码了
-    model_path = load_model_path("qwen2_7b")
-    tok = Tokenizer(model_path)
+    # model_path = load_model_path("qwen2_7b")
+    tok = Tokenizer("qwen2_7b")
 
     token_ids = tok.encode("你好，世界")
     print("Token IDs:", token_ids)

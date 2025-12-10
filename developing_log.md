@@ -97,6 +97,8 @@ huggingface-cli download \
     qwen/Qwen2-7B \
     --local-dir /home/dexterding/models/Qwen2-7B
 ```
+
+# 2025-12-10
 ## 开发过程中写小test来明白在干嘛
 
 写了一个小test 用来了解每一步tokenizer在干什么  
@@ -165,3 +167,100 @@ qwen2_7b: "/home/dexterding/models/Qwen2-7B"
 
 
 这样可以随时可以切换模型，不影响测试代码。 
+
+
+## Model Loader 模型加载器
+
+### 和engine的区分
+1. 这里只拿模型本身
+2. 利用config loader在config里yaml里拿定义的模型（存在wsl里的）的path
+3. 此处调用huggingface的接口 AutoCausalLM 用来直接得到对应的模型架构（不用自己手写）
+3.1 model_path 必须提供 如果提供的是名字 那么会去下载
+3.2 需要额外禁止一下localfile only
+3.3 这里练习基础 不直接使用huggingface的自动挡 例如把模型放在哪张显卡啊放内存啊之类的 （本质是torch的语法）
+3.4 开启eval模式
+
+
+# ModelLoader 的作用与 Engine 的区分
+
+### 1. ModelLoader 的职责是“加载模型本体”
+
+- 仅负责从磁盘/WsL 加载模型权重与架构。
+- 不负责推理流程、不负责生成逻辑、不负责 KV cache，不负责 tokenizer。
+
+- 所有“运行时行为（如生成 token 流、状态维护）”交给 Engine。
+
+### 2. 从配置系统中读取模型路径
+
+- 通过 config loader 从 configs/model_paths.yaml 中解析模型路径。
+
+- path 指向 WSL 本地目录：例如 /home/dexterding/models/Qwen2-7B
+
+- 这样避免在代码中写死路径，使模型切换更灵活。
+
+### 3. 利用 HuggingFace AutoModelForCausalLM 获取模型架构
+
+- 通过 AutoModelForCausalLM.from_pretrained(model_path) 自动构建 Qwen2 的网络结构。
+
+- 不需要手动编写 PyTorch 的 transformer 层，实现“框架即架构”。
+
+- 模型类基于 config 自动选择正确的实现（如 Qwen2ForCausalLM）。
+
+### 4. 模型路径设定相关细节
+
+- 必须提供 model_path，否则会默认下载网络模型。
+
+- 开发阶段应强制：
+```python
+local_files_only=True
+```
+  避免误触发在线下载行为。
+
+### 5.不使用 HF 的“自动分布式/自动 placement”能力（刻意训练基础能力）
+
+- 不使用 Accelerate
+
+- 不使用 device_map="auto"
+→ 目的是练习底层 PyTorch 的模型放置语法：
+
+- model.to("cuda:0")
+ 并理解显存管理，而不是被自动挡抽象遮蔽。
+
+### 6. 开启 eval() 模式
+
+禁止梯度：节约显存并防止误反向。
+
+推理模式下 LayerNorm、Dropout 会切换到 inference 行为。
+
+
+
+完善了MVP
+LLM 选用的是 qwen2-7b 使用单卡24gb可运行
+model loader和tokenizer loader输入model_name后自动调用config loader的load model path
+注意的点1
+tokenizer的init是使用model name
+modelLoader init也是model name
+但是对应的AutoTokenizer.from_pretrained
+和 AutoModelForCausalLM.from_pretrained
+都是需要的model path 并且是访问本地local file
+local file存放在config的yaml中
+注意的点2 目前的tokenizer 实现的是
+输出2d tensor （1,seq_len） 转1d tensor（seq_len）
+因为只有一个prompt 但是tokenizer默认的是batch_size
+目前实现的mvp对应的单个prompt且一次一个token 输出
+注意的点3
+模型运行的device 是取决于 modeLoader的device的
+不是很好应该下个版本改
+在simpleengine里也是从model_loader的device里获取的device
+注意的点4 
+目前因为model 需要的是batch size的input 所以单个的prompt转换成的id
+需要从（sequence） 转化为（1，sequence）
+outputs里存的 除了logit之外因为有use_cache 所以会返回cache
+prefil的model是输入prompt+ids和use_cache
+但是之后的一个一个算token的部分 
+使用的是
+1.单个最新生成的token转化为tensor哦
+2. 以及过去的past key values
+3.一次次覆盖for loop之前的 
+model其实是两种算法状态 prefill和decode是两个
+最后使用tokenizer的decode
