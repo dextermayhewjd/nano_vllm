@@ -264,3 +264,79 @@ prefil的model是输入prompt+ids和use_cache
 3.一次次覆盖for loop之前的 
 model其实是两种算法状态 prefill和decode是两个
 最后使用tokenizer的decode
+
+
+### 2025-12-11 开发日志｜MVP 梳理
+
+**1. MVP 状态**
+
+- 完成最小可运行版本（MVP）
+- LLM 选用 **qwen2-7b**，在单卡 **24GB** 显存上可正常运行
+
+---
+
+**2. Model / Tokenizer / Config 关系**
+
+- `ModelLoader` 和 `Tokenizer` 的初始化参数都是 `model_name`
+- 内部会通过 `ConfigLoader`：
+  - 根据 `model_name` 读取对应的 **model path**（本地路径），配置存放在 `config/*.yaml` 中  
+  - `AutoTokenizer.from_pretrained(...)` 和 `AutoModelForCausalLM.from_pretrained(...)` 实际使用的是 **本地 model path**，只访问 local file，不依赖在线下载
+
+---
+
+**3. Tokenizer 实现细节**
+
+- `Tokenizer.__init__` 只接收 **model name**，不直接接触路径
+- 当前 `encode` 的行为：
+  - HuggingFace 默认返回 **2D tensor**：`(1, seq_len)`（因为默认有 batch 维度）
+  - 由于当前仅支持单个 prompt，当前取`[0]`把输出压成 **1D tensor**：`(seq_len,)`
+- 当前 MVP 假设：
+  - **只处理单个 prompt**
+  - **一次只生成一个 token** 的自回归输出逻辑
+
+---
+
+**4. Device 管理（有待改进）**
+
+- 目前模型运行所在的 `device` 由 `ModelLoader.device` 决定
+- `SimpleEngine` 内部也是直接从 `model_loader.device` 取 `device`
+- 这种设计耦合度偏高：  
+  - 设备逻辑绑在 `ModelLoader` 上并不理想  
+  - 计划在下个版本重构 device 管理（从 Engine 或更上层统一下发）
+
+---
+
+**5. 推理流程 & KV Cache 行为**
+
+- **输入形状处理**
+  - 模型需要 batch 维度的输入
+  - 单个 prompt 的 token ids 需要从 `(seq_len,)` 转成 `(1, seq_len)`
+
+- **Prefill 阶段**
+  - 调用：`model(input_ids, use_cache=True)`
+  - 输入：完整的 prompt token ids（带 batch 维度）
+  - 输出：
+    - `logits`
+    - `past_key_values`（KV cache，用于后续解码）
+
+- **Decode 循环阶段**
+  - 每一步：
+    1. 取最新生成的 **单个 token id**，转成 tensor（带 batch & seq 维度，如 `(1, 1)`）
+    2. 连同上一轮的 `past_key_values` 一起送入模型
+    3. 使用新返回的 `past_key_values` 覆盖旧值
+  - 模型在内部对 **prefill** 和 **decode** 有不同的计算路径：
+    - Prefill：一次性处理完整序列，建立完整 KV cache
+    - Decode：每次只处理一个新 token，复用历史 KV cache
+
+- **输出还原**
+  - 收集所有生成的 `token_ids`
+  - 使用 `tokenizer.decode(...)` 转回文本
+
+---
+
+**6. 当前版本的限制**
+
+- 只支持：
+  - 单个 prompt
+  - 一次生成一个 token 的循环解码
+- Device 逻辑暂时耦合在 `ModelLoader`，计划在后续版本重构

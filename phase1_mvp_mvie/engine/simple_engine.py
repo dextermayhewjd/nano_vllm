@@ -14,26 +14,45 @@ class SimpleEngine:
         self.max_new_tokens = max_new_tokens
         
         
-    @torch.no_grad()
-    def generate(self,prompt:str):
-        # -----------------------------
-        # 1. Tokenize
-        # -----------------------------
-        input_ids = self.tokenizer.encode(prompt).to(self.device)# (seq_len,)
-        input_ids_batch_1 = input_ids.unsqueeze(0)  #  → (1, seq_len)
-        # -----------------------------        
-        # 2. Prefill: 建立 KV Cache
-        # -----------------------------
-        outputs = self.model(
-            input_ids_batch_1,
-            use_cache=True
-        )
-        past_key_values = outputs.past_key_values
-        #把prompt中的kv存起来 后期只需要连接concatenate就可以了
         
-        # flatten existing tokens
-        generated_ids = input_ids.tolist()
+    @torch.no_grad()
+    def prefil_step(self,
+                    input_ids:torch.Tensor):
+        """
+        Docstring for prefil_step
+        输入：
+        1. input_ids :torch.Tensor  单个 prompt (seq_len)
+        
+        返回:
+        1. past_key_values          传递给decode阶段 需要过去的键值对
+#       2. generated_ids: list[int]  用来包括已经生成的token的ids
+#       3. next_token_id: int       第一个预测出来的新token的 int值      
+  
+        目的：
+        1.将原本cpu上的input_id放入device
+        2.转换单个 prompt (seq_len) -> (1,seq_len)  
+        3. 使用model的cache 版本返回 past加new _token 的output的kv对
+        4. 将目前的input_ids变成list[int] 用于最后decode
+        
 
+        """
+        #此处是prefil step 把prompt转换的input_ids放进去device  目前是shape是（seq_len）
+        # model 的__call__ 需要的是 （batchsize，seq_len）
+
+        # # 输入的prompt再tokenizer encode后的(seq_len) 单个prompt的ids
+
+        input_id_batch_1 = input_ids.unsqueeze(0).to(self.device)#  → (1, seq_len)
+        
+        outputs = self.model(
+                            input_id_batch_1,
+                            use_cache=True
+        )
+        #把prompt中的kv存起来 后期只需要连接concatenate就可以了 目前只是给model用 用于decode的__call__        
+        past_key_values = outputs.past_key_values
+        # flatten existing tokens        
+        generated_ids = input_ids.tolist()
+        next_token_id = torch.argmax(outputs.logits[:,-1,:],dim=-1).item()        
+        
         # 取第一个 next token
         #  Batch，sequence_size, vocab_size
         #  此处batch是1 因为tokenizer 的机制 每次只有一个prompt
@@ -42,35 +61,59 @@ class SimpleEngine:
         # dim = -1 代表的是在最后一个维度做argmax 因为取了最后一个token在[:, -1, :]
         # 所以此时的维度变成了(1, 152064) 且在 vocab上做argmax 所以是（1，1） Tensor（[一个int]）
         # generated id 要把这个id加进去 所以就变了这个 item（） 将这个变成int append到list里
-        next_token_id = torch.argmax(outputs.logits[:, -1, :], dim=-1).item()
-        generated_ids.append(next_token_id)
-
-        # -----------------------------
-        # 3. Decode Loop
-        # -----------------------------
         
-        #已经算了一个token了
-        for _ in range(self.max_new_tokens -1):
+        generated_ids.append(next_token_id)
+        
+        return past_key_values, generated_ids, next_token_id
 
-            # 把最新的token放进去再算
-            next_input = torch.tensor(
-                                      [[next_token_id]],
-                                      device=self.device,
-                                      dtype=torch.long,   # 很重要，必须是 long，才能拿去做 embedding
-                                    )
-            
-            outputs = self.model(
-              next_input,
-              past_key_values = past_key_values,
-              use_cache = True
-            )
-            
-            past_key_values = outputs.past_key_values
-            
-            next_token_id = torch.argmax(outputs.logits[:, -1, :], dim=-1).item()
+        
+    @torch.no_grad()
+    def decode_step(self,
+               next_token_id: int,
+               past_key_values):
+        """
+        Docstring for decode_step
+        输入: 1. next_token_id : int 由前一步生成的token的id
+              2. past_key_values     上一步生成的键值对 
+        输出: 
+
+        单步 decode:
+        - 构造 (1,1) 的 next_input
+        - 带着 past_key_values 进入 model
+        - 返回新的 next_token_id 和新的 pkv
+
+        """
+                
+        next_input = torch.tensor(
+                        [[next_token_id]],
+                        device=self.device,
+                        dtype=torch.long,   # 很重要，必须是 long，才能拿去做 embedding
+                        )
+        
+        outputs = self.model(
+            next_input,
+            past_key_values = past_key_values,
+            use_cache = True
+        )
+
+        past_key_values = outputs.past_key_values
+        next_token_id = torch.argmax(outputs.logits[:, -1, :], dim=-1).item()
+
+        return next_token_id, past_key_values
+        
+
+    @torch.no_grad()
+    def generate(self,prompt:str):
+        # 1. Tokenize
+        input_ids = self.tokenizer.encode(prompt)# (seq_len,)
+    
+        # 2. Prefill: 建立 KV Cache
+        past_key_values, generated_ids, next_token_id = self.prefil_step(input_ids)
+
+        # 3. Decode Loop
+        for _ in range(self.max_new_tokens -1):
+            next_token_id, past_key_values = self.decode_step(next_token_id=next_token_id, past_key_values=past_key_values)
             generated_ids.append(next_token_id)
             
-        # -----------------------------
         # 4. Decode text
-        # -----------------------------
         return self.tokenizer.decode(generated_ids)
