@@ -340,3 +340,45 @@ model其实是两种算法状态 prefill和decode是两个
   - 单个 prompt
   - 一次生成一个 token 的循环解码
 - Device 逻辑暂时耦合在 `ModelLoader`，计划在后续版本重构
+
+# 2025-12-12 
+
+1. 原本的 minimal generate部分的代码逻辑 转移到了runtime/api.py
+   把参数部分 提了出来 
+   1. 模型名字        str
+   2. prompt本身是真么 str
+   3. max new token 提了出来
+   4. 把设备在哪里 放着里了（但是目前还是耦合的 默认设置在model_loader处）
+    是否应该设计一下 先使用assert 使得loader和engine是在一个device cuda：1上的
+
+  本身的minimal_generate.py 加入paser
+  paser 涵盖上述四个点
+
+  paser 含有三步
+```python
+    #1.创建一个parser
+    parser = argparse.ArgumentParser()
+    
+    #2.  一堆要加进去给args的
+    parser.add_argument("--model-name",type = str, required=True, help = "Key in configs/model_paths.yaml")
+    parser.add_argument("--prompt", type=str, default="你好，介绍一下你自己") 
+
+    #3. args = 
+    args = parser.parse_args()  
+
+```
+注意 arg中间 - 连接的 后面都要变成 _
+```python
+    output = generate(
+        model_name=args.model_name,
+        prompt=args.prompt,
+        max_new_tokens=args.max_new_tokens,
+        device=args.device,
+    )
+```
+   涉及改动 
+```bash
+  [CHANGED]   minimal_generate.py  
+  [NEW]       runtime/api.py 
+```
+    
