@@ -1,3 +1,8 @@
+"""
+Docstring for debug.debug_model_structure
+这个是用来探索ModelLoader加载的模型内部结构是什么
+"""
+
 from engine.model_loader import ModelLoader
 
 def main():

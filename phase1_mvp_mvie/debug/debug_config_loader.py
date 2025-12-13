@@ -1,3 +1,7 @@
+"""
+Docstring for debug.debug_config_loader
+用来查看 config_loader 所返回的 model path是什么样子的
+"""
 from engine.config_loader import load_model_path
 
 def main():

@@ -382,3 +382,223 @@ model其实是两种算法状态 prefill和decode是两个
   [NEW]       runtime/api.py 
 ```
     
+2. 使用pytest
+    ## 脚本 & 测试 &样例 分离
+    
+    #### debug 和 test 和 example的区别   
+    ##### 1️⃣ Debug ——「我在理解系统」
+    核心目的  
+
+    👉 回答：“这里到底发生了什么？”  
+          典型特征  
+          有大量 print  
+          会看 shape / dtype / module  
+          跑完一次就可能删  
+          允许 hardcode  
+          不稳定、不保证长期成立  
+
+
+    ##### 2️⃣ Test ——「我在保护系统」
+        核心目的
+    👉 回答：“这个接口有没有被破坏？”  
+
+      典型特征  
+          1. 几乎只有 assert  
+          2. 不靠人眼  
+          3. 快、稳定、可重复   
+          4. 明确 contract（shape / type / 语义）  
+
+      失败含义：  
+
+      ❌ “有 bug 了，必须修”
+
+      典型问题    
+          1. encode 是否始终返回 1D tensor？  
+          2. config_loader 是否总返回 string？  
+          3. SimpleEngine 是否能被正确初始化？  
+          4. batch/shape contract 有没有被破坏？
+
+      ##### 3️⃣ Example ——「我在展示系统能力」
+
+核心目的
+
+  👉 回答：“这个系统能干什么？”  
+
+典型特征：  
+    1. 跑得通最重要    
+    2. 输出给人看（文本、logits、速度）  
+    3. 可慢、可依赖 GPU / 大模型   
+    4. 类似 demo / README 里的命令
+失败含义：
+
+❌ “用户体验坏了 / 示例过时了”
+
+典型问题：  
+    1. 能不能生成一句完整中文？  
+    2. 多轮 prompt 效果如何？  
+    3. batch generation 怎么用？  
+
+| 维度        | Debug | Test      | Example |
+| --------- | ----- | --------- | ------- |
+| 面向对象      | 自己    | 未来自己 / CI | 用户      |
+| 是否探索      | ✅     | ❌         | ❌       |
+| 是否 assert | 可有可无  | 必须        | 可有      |
+| 是否 print  | ✅     | ❌         | ✅       |
+| 是否稳定      | ❌     | ✅         | ⚠️      |
+| 是否进 CI    | ❌     | ✅         | ❌       |
+| 是否依赖 GPU  | 随意    | 尽量避免      | 可以      |
+
+```bash
+tests/
+├── test_xxxxxx.py     # 只放 test_xxx 
+debug/
+├── debug_xxxxxxr.py    # 用来 print / 手动跑 debug 用于探索
+```
+ 把debug改成test中是这样子的
+  1. 将原来的 
+  ```python
+  def main():
+  ```
+
+  转换成
+
+    ```python
+    def test_tokenizer_encode_decode():
+    ```
+  才能使用 pytest -q tests/test_tokenizer.py
+## test 设计的 4 个层级（从里到外）
+[1] 类型 & shape contract  
+[2] 语义 contract  
+[3] 模块协作 contract  
+[4] 极少量端到端 sanity  
+
+
+### ① 类型 & Shape Contract（最优先，最稳定）
+
+这是 推理引擎项目里 ROI 最高的 test。
+适合 test 的问题
+
+- encode 输出是不是 1D / 2D
+
+- logits shape 是否固定
+
+- batch 维度有没有偷偷出现
+  
+- KV cache index 有没有越界
+
+- dtype 是否为 long / float16
+
+示例（Tokenizer）
+```python
+def test_tokenizer_encode_shape():
+    token_ids = tokenizer.encode("hi")
+    assert token_ids.ndim == 1
+```
+
+👉 原因：
+shape 一旦变了，整个 engine 都会 silent break
+
+### ② 语义 Contract（“不会变的语义”）
+
+不是“模型好不好”，而是逻辑对不对。
+
+适合 test 的问题
+
+- decode(encode(x)) ≈ x
+
+- max_new_tokens 是否真的限制输出
+
+- 空 prompt 是否被拒绝 / 正确处理
+
+- 不合法输入是否抛异常
+
+示例
+```python 
+def test_max_new_tokens_respected():
+    out = engine.generate("hi")
+    assert len(out) <= expected_upper_bound
+```
+### ③ 模块协作 Contract（只测边界，不测细节）
+
+这里非常容易 over-test，要克制。
+
+正确测法
+
+- engine 是否调用 tokenizer.encode
+
+- engine 是否使用 loader.device
+
+- engine 是否返回 string
+
+错误测法（不要）
+
+- 每一层 transformer 是否被调用
+
+- logits 数值是多少
+
+### ④ End-to-End Sanity（最多 1～2 个）
+
+不是 accuracy test，只是“还活着吗”
+
+示例
+@pytest.mark.gpu
+def test_engine_can_generate_one_token():
+    out = engine.generate("你好")
+    assert isinstance(out, str)
+
+
+⚠️ 只要 1 个就够了
+
+## 「模板」设计一个 test
+
+以后你给任何模块写 test，套这个模板就行。
+
+### Step 1：写下 contract（英文/中文都行）
+
+- Tokenizer.encode:
+
+- input: str
+
+- output: 1D torch.LongTensor
+
+- no batch dim
+
+### Step 2：把 contract 翻成 assert
+```python
+assert isinstance(token_ids, torch.Tensor)
+assert token_ids.ndim == 1
+assert token_ids.dtype == torch.long
+```
+
+### Step 3：删掉所有 print
+
+如果你发现：
+
+“不 print 我不知道对不对”
+
+👉 那说明 它还不是 test，回去写 debug
+
+四、你当前项目「立刻值得写 test」的清单（很具体）  
+✅ 必写（现在就该有）
+
+- Tokenizer encode/decode contract
+
+- Config loader 返回类型
+
+- SimpleEngine 初始化 & 参数透传
+
+- shape / batch 不变量
+
+⚠️ 选写（下阶段）
+
+- 单 step generation shape
+
+- KV cache index contract
+
+- scheduler 输入输出 shape
+
+❌ 不写（或极少）
+
+- 模型数值正确性
+- 文本生成质量
+- 性能
