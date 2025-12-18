@@ -602,3 +602,56 @@ assert token_ids.dtype == torch.long
 - 模型数值正确性
 - 文本生成质量
 - 性能
+
+# 2025-12-13 
+
+今天写了request 目的是为了对标vllm
+为什么需要request
+看过调度策略之后就会明白 不可能一个贪心算法一直只算一个request
+所以需要定义一个数据类 选用dataclass
+除了自身id之外
+还需要有这个prompt是什么
+其次要有一个max_new_token来限制生成 这个应该是对标了目前的engine 中的generate
+因为一次需要生成多少个token是定义在这一个请求里的
+所以分开放在request里 作为一个状态机
+
+除了prompt本身
+1. 收到 prompt
+2. tokenize 得到 input_ids
+3. 逐 token decode、不断 append 新 token
+4. 达到 max_new_tokens / eos 结束
+5. 标记 finished，释放 cache
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
