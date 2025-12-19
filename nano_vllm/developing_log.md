@@ -625,7 +625,14 @@ assert token_ids.dtype == torch.long
 
 
  
-
+# 2025-12-19
+将simple_engine 的逻辑改为 executor
+1. 取消原来的simple engine 中的 max new token
+将其转移到Request 中 变成request的属性
+2. prefill和 decode 都变成simple engine的private方法
+3. 原generate变成run
+4. tokenizer的encode 加入prefil中
+5. max token从request中取
 
 
 

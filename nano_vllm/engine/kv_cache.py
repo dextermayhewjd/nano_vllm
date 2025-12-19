@@ -10,4 +10,13 @@ class KVCache:
         self._pkv = past_key_values
         
     @property
+    def data(self):
+        return self._pkv
     
+    @data.setter 
+    def data(self,value):
+        self._pkv = value
+    
+    '''
+    fluent python chapter22
+    '''
