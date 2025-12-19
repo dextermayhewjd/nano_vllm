@@ -25,3 +25,4 @@ env/
 *.safetensors
 *.bin
 *.pt
+
