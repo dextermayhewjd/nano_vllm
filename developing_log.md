@@ -264,3 +264,401 @@ prefil的model是输入prompt+ids和use_cache
 3.一次次覆盖for loop之前的 
 model其实是两种算法状态 prefill和decode是两个
 最后使用tokenizer的decode
+
+
+### 2025-12-11 开发日志｜MVP 梳理
+
+**1. MVP 状态**
+
+- 完成最小可运行版本（MVP）
+- LLM 选用 **qwen2-7b**，在单卡 **24GB** 显存上可正常运行
+
+---
+
+**2. Model / Tokenizer / Config 关系**
+
+- `ModelLoader` 和 `Tokenizer` 的初始化参数都是 `model_name`
+- 内部会通过 `ConfigLoader`：
+  - 根据 `model_name` 读取对应的 **model path**（本地路径），配置存放在 `config/*.yaml` 中  
+  - `AutoTokenizer.from_pretrained(...)` 和 `AutoModelForCausalLM.from_pretrained(...)` 实际使用的是 **本地 model path**，只访问 local file，不依赖在线下载
+
+---
+
+**3. Tokenizer 实现细节**
+
+- `Tokenizer.__init__` 只接收 **model name**，不直接接触路径
+- 当前 `encode` 的行为：
+  - HuggingFace 默认返回 **2D tensor**：`(1, seq_len)`（因为默认有 batch 维度）
+  - 由于当前仅支持单个 prompt，当前取`[0]`把输出压成 **1D tensor**：`(seq_len,)`
+- 当前 MVP 假设：
+  - **只处理单个 prompt**
+  - **一次只生成一个 token** 的自回归输出逻辑
+
+---
+
+**4. Device 管理（有待改进）**
+
+- 目前模型运行所在的 `device` 由 `ModelLoader.device` 决定
+- `SimpleEngine` 内部也是直接从 `model_loader.device` 取 `device`
+- 这种设计耦合度偏高：  
+  - 设备逻辑绑在 `ModelLoader` 上并不理想  
+  - 计划在下个版本重构 device 管理（从 Engine 或更上层统一下发）
+
+---
+
+**5. 推理流程 & KV Cache 行为**
+
+- **输入形状处理**
+  - 模型需要 batch 维度的输入
+  - 单个 prompt 的 token ids 需要从 `(seq_len,)` 转成 `(1, seq_len)`
+
+- **Prefill 阶段**
+  - 调用：`model(input_ids, use_cache=True)`
+  - 输入：完整的 prompt token ids（带 batch 维度）
+  - 输出：
+    - `logits`
+    - `past_key_values`（KV cache，用于后续解码）
+
+- **Decode 循环阶段**
+  - 每一步：
+    1. 取最新生成的 **单个 token id**，转成 tensor（带 batch & seq 维度，如 `(1, 1)`）
+    2. 连同上一轮的 `past_key_values` 一起送入模型
+    3. 使用新返回的 `past_key_values` 覆盖旧值
+  - 模型在内部对 **prefill** 和 **decode** 有不同的计算路径：
+    - Prefill：一次性处理完整序列，建立完整 KV cache
+    - Decode：每次只处理一个新 token，复用历史 KV cache
+
+- **输出还原**
+  - 收集所有生成的 `token_ids`
+  - 使用 `tokenizer.decode(...)` 转回文本
+
+---
+
+**6. 当前版本的限制**
+
+- 只支持：
+  - 单个 prompt
+  - 一次生成一个 token 的循环解码
+- Device 逻辑暂时耦合在 `ModelLoader`，计划在后续版本重构
+
+# 2025-12-12 
+
+1. 原本的 minimal generate部分的代码逻辑 转移到了runtime/api.py
+   把参数部分 提了出来 
+   1. 模型名字        str
+   2. prompt本身是真么 str
+   3. max new token 提了出来
+   4. 把设备在哪里 放着里了（但是目前还是耦合的 默认设置在model_loader处）
+    是否应该设计一下 先使用assert 使得loader和engine是在一个device cuda：1上的
+
+  本身的minimal_generate.py 加入paser
+  paser 涵盖上述四个点
+
+  paser 含有三步
+```python
+    #1.创建一个parser
+    parser = argparse.ArgumentParser()
+    
+    #2.  一堆要加进去给args的
+    parser.add_argument("--model-name",type = str, required=True, help = "Key in configs/model_paths.yaml")
+    parser.add_argument("--prompt", type=str, default="你好，介绍一下你自己") 
+
+    #3. args = 
+    args = parser.parse_args()  
+
+```
+注意 arg中间 - 连接的 后面都要变成 _
+```python
+    output = generate(
+        model_name=args.model_name,
+        prompt=args.prompt,
+        max_new_tokens=args.max_new_tokens,
+        device=args.device,
+    )
+```
+   涉及改动 
+```bash
+  [CHANGED]   minimal_generate.py  
+  [NEW]       runtime/api.py 
+```
+    
+2. 使用pytest
+    ## 脚本 & 测试 &样例 分离
+    
+    #### debug 和 test 和 example的区别   
+    ##### 1️⃣ Debug ——「我在理解系统」
+    核心目的  
+
+    👉 回答：“这里到底发生了什么？”  
+          典型特征  
+          有大量 print  
+          会看 shape / dtype / module  
+          跑完一次就可能删  
+          允许 hardcode  
+          不稳定、不保证长期成立  
+
+
+    ##### 2️⃣ Test ——「我在保护系统」
+        核心目的
+    👉 回答：“这个接口有没有被破坏？”  
+
+      典型特征  
+          1. 几乎只有 assert  
+          2. 不靠人眼  
+          3. 快、稳定、可重复   
+          4. 明确 contract（shape / type / 语义）  
+
+      失败含义：  
+
+      ❌ “有 bug 了，必须修”
+
+      典型问题    
+          1. encode 是否始终返回 1D tensor？  
+          2. config_loader 是否总返回 string？  
+          3. SimpleEngine 是否能被正确初始化？  
+          4. batch/shape contract 有没有被破坏？
+
+      ##### 3️⃣ Example ——「我在展示系统能力」
+
+核心目的
+
+  👉 回答：“这个系统能干什么？”  
+
+典型特征：  
+    1. 跑得通最重要    
+    2. 输出给人看（文本、logits、速度）  
+    3. 可慢、可依赖 GPU / 大模型   
+    4. 类似 demo / README 里的命令
+失败含义：
+
+❌ “用户体验坏了 / 示例过时了”
+
+典型问题：  
+    1. 能不能生成一句完整中文？  
+    2. 多轮 prompt 效果如何？  
+    3. batch generation 怎么用？  
+
+| 维度        | Debug | Test      | Example |
+| --------- | ----- | --------- | ------- |
+| 面向对象      | 自己    | 未来自己 / CI | 用户      |
+| 是否探索      | ✅     | ❌         | ❌       |
+| 是否 assert | 可有可无  | 必须        | 可有      |
+| 是否 print  | ✅     | ❌         | ✅       |
+| 是否稳定      | ❌     | ✅         | ⚠️      |
+| 是否进 CI    | ❌     | ✅         | ❌       |
+| 是否依赖 GPU  | 随意    | 尽量避免      | 可以      |
+
+```bash
+tests/
+├── test_xxxxxx.py     # 只放 test_xxx 
+debug/
+├── debug_xxxxxxr.py    # 用来 print / 手动跑 debug 用于探索
+```
+ 把debug改成test中是这样子的
+  1. 将原来的 
+  ```python
+  def main():
+  ```
+
+  转换成
+
+    ```python
+    def test_tokenizer_encode_decode():
+    ```
+  才能使用 pytest -q tests/test_tokenizer.py
+## test 设计的 4 个层级（从里到外）
+[1] 类型 & shape contract  
+[2] 语义 contract  
+[3] 模块协作 contract  
+[4] 极少量端到端 sanity  
+
+
+### ① 类型 & Shape Contract（最优先，最稳定）
+
+这是 推理引擎项目里 ROI 最高的 test。
+适合 test 的问题
+
+- encode 输出是不是 1D / 2D
+
+- logits shape 是否固定
+
+- batch 维度有没有偷偷出现
+  
+- KV cache index 有没有越界
+
+- dtype 是否为 long / float16
+
+示例（Tokenizer）
+```python
+def test_tokenizer_encode_shape():
+    token_ids = tokenizer.encode("hi")
+    assert token_ids.ndim == 1
+```
+
+👉 原因：
+shape 一旦变了，整个 engine 都会 silent break
+
+### ② 语义 Contract（“不会变的语义”）
+
+不是“模型好不好”，而是逻辑对不对。
+
+适合 test 的问题
+
+- decode(encode(x)) ≈ x
+
+- max_new_tokens 是否真的限制输出
+
+- 空 prompt 是否被拒绝 / 正确处理
+
+- 不合法输入是否抛异常
+
+示例
+```python 
+def test_max_new_tokens_respected():
+    out = engine.generate("hi")
+    assert len(out) <= expected_upper_bound
+```
+### ③ 模块协作 Contract（只测边界，不测细节）
+
+这里非常容易 over-test，要克制。
+
+正确测法
+
+- engine 是否调用 tokenizer.encode
+
+- engine 是否使用 loader.device
+
+- engine 是否返回 string
+
+错误测法（不要）
+
+- 每一层 transformer 是否被调用
+
+- logits 数值是多少
+
+### ④ End-to-End Sanity（最多 1～2 个）
+
+不是 accuracy test，只是“还活着吗”
+
+示例
+@pytest.mark.gpu
+def test_engine_can_generate_one_token():
+    out = engine.generate("你好")
+    assert isinstance(out, str)
+
+
+⚠️ 只要 1 个就够了
+
+## 「模板」设计一个 test
+
+以后你给任何模块写 test，套这个模板就行。
+
+### Step 1：写下 contract（英文/中文都行）
+
+- Tokenizer.encode:
+
+- input: str
+
+- output: 1D torch.LongTensor
+
+- no batch dim
+
+### Step 2：把 contract 翻成 assert
+```python
+assert isinstance(token_ids, torch.Tensor)
+assert token_ids.ndim == 1
+assert token_ids.dtype == torch.long
+```
+
+### Step 3：删掉所有 print
+
+如果你发现：
+
+“不 print 我不知道对不对”
+
+👉 那说明 它还不是 test，回去写 debug
+
+四、你当前项目「立刻值得写 test」的清单（很具体）  
+✅ 必写（现在就该有）
+
+- Tokenizer encode/decode contract
+
+- Config loader 返回类型
+
+- SimpleEngine 初始化 & 参数透传
+
+- shape / batch 不变量
+
+⚠️ 选写（下阶段）
+
+- 单 step generation shape
+
+- KV cache index contract
+
+- scheduler 输入输出 shape
+
+❌ 不写（或极少）
+
+- 模型数值正确性
+- 文本生成质量
+- 性能
+
+# 2025-12-13 
+
+今天写了request 目的是为了对标vllm
+为什么需要request
+看过调度策略之后就会明白 不可能一个贪心算法一直只算一个request
+所以需要定义一个数据类 选用dataclass
+除了自身id之外
+还需要有这个prompt是什么
+其次要有一个max_new_token来限制生成 这个应该是对标了目前的engine 中的generate
+因为一次需要生成多少个token是定义在这一个请求里的
+所以分开放在request里 作为一个状态机
+
+除了prompt本身
+1. 收到 prompt
+2. tokenize 得到 input_ids
+3. 逐 token decode、不断 append 新 token
+4. 达到 max_new_tokens / eos 结束
+5. 标记 finished，释放 cache
+
+
+
+ 
+# 2025-12-19
+将simple_engine 的逻辑改为 executor
+1. 取消原来的simple engine 中的 max new token
+将其转移到Request 中 变成request的属性
+2. prefill和 decode 都变成simple engine的private方法
+3. 原generate变成run
+4. tokenizer的encode 加入prefil中
+5. max token从request中取
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
