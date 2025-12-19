@@ -40,3 +40,6 @@ def main():
 
 if __name__ == "__main__":
     main()    
+'''
+python ./examples/minimal_generate.py --model-name qwen_7b
+'''
