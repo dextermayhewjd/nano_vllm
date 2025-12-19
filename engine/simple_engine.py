@@ -1,11 +1,21 @@
-'''
-Docstring for engine.simple_engine
-12-18 改动后弃用
-'''
+#engine\simple_engine.py
 
+"""
+DEPRECATED:
+- SimpleEngine is deprecated since 2025-12
+- Use Executor instead
+
+❌ engine.simple_engine is deprecated
+✅ Use engine.executor.Executor
+
+- Kept temporarily for:
+  - contract tests
+  - reference behavior
+"""
 import torch
 from engine.model_loader import ModelLoader
 from engine.tokenizer import Tokenizer
+import warnings
 
 class SimpleEngine:
     def __init__(self,
@@ -13,6 +23,11 @@ class SimpleEngine:
                  tokenizer:Tokenizer,
                  max_new_tokens :int = 50
                  ):
+        warnings.warn(
+            "SimpleEngine is deprecated. Use Executor instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.model = model_loader.get_model()
         self.tokenizer = tokenizer
         self.device = self.model.device # 与loader的device保持一致

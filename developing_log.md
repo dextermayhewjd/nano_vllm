@@ -625,7 +625,7 @@ assert token_ids.dtype == torch.long
 
 
  
-# 2025-12-19
+# 2025-12-19 Phase 2 结束
 将simple_engine 的逻辑改为 executor
 1. 取消原来的simple engine 中的 max new token
 将其转移到Request 中 变成request的属性
@@ -634,7 +634,46 @@ assert token_ids.dtype == torch.long
 4. tokenizer的encode 加入prefil中
 5. max token从request中取
 
+Phase2 把生成流程拆成 Request + KVCache + Executor
 
+## DEPRECATED 文档本身步骤
+
+1. import warnings
+加入引用
+
+2.  在文件开头加入
+"""
+DEPRECATED:
+- SimpleEngine is deprecated since 2025-12
+- Use Executor instead
+
+❌ engine.simple_engine is deprecated
+✅ Use engine.executor.Executor
+
+- Kept temporarily for:
+  - contract tests
+  - reference behavior
+"""
+3. 在__init__中
+```python
+        warnings.warn(
+            "SimpleEngine is deprecated. Use Executor instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+```
+## 工程部分test 
+```bash
+pytest -W default
+```
+用 带W的来跑
+
+## test的管理 如见变成legacy 一会再看 
+放在obesdian里了
+
+# 2025-12-19 Phase3 开始
+
+- 引入scheduler的概念 
 
 
 
