@@ -1,12 +1,18 @@
 from engine.simple_engine import SimpleEngine
 
+class DummyModel:
+    device = "cpu"
+
 class DummyLoader:
     """
     假 ModelLoader：
     只提供 device 属性，避免加载真实模型
     """
     device = "cpu"
-
+    
+    def get_model(self):
+        return DummyModel()
+    
 class DummyTokenizer:
     def encode(self, text):
         return [1, 2, 3]
