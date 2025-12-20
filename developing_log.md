@@ -673,16 +673,49 @@ pytest -W default
 
 # 2025-12-19 Phase3 开始
 
-- 引入scheduler的概念 
+## 3.1 Request 升级 
 
+把dataclass升级了一下 
+以应对eos的问题
 
+### 加深对于dataclass的理解
+如果是 是可变对象 例如 List [] 做初始化值 才会发生共享
+应对方法 是使用
+default_factory=list 会在每次创建 Request 时都调用一次 list()，生成一个全新的列表，所以每个请求都有自己独立的 generated_ids
+```python
+generated_ids: List[int] = field(default_factory=list) ✅
+```
+如果不这样的话会被所有实例共享该list
 
+### __post_init__
 
+1. 为什么不直接写init 
+因为如果这么写的话 所有和init相关的都会失效
 
+2. 哪种情况用 
+验证或者联合验证 
 
+3. 结合pytest
+    ```python
+    if not isinstance(self.id,int) or self.id < 0;
+        raise ValueError("Request.id must be a non-negative int ")
+    ```
+      isinstance(self.attribute,type) or self.attribute <>=;
+          raise ValueError("xxxxxxx")
 
-
-
+1️⃣ pytest 的核心约定
+  pytest  里面必须写的是 
+  ```python
+  def test_xxx:
+  ```
+  才能被自动发现并执行
+    
+2️⃣ with pytest.raises(ValueError) 的含义
+  ```python
+  with pytest.raises(ValueError):
+      Request(id=-1,prompt='x')
+  ```
+  必须抛出ValueError 否则失效
 
 
 
