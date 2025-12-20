@@ -14,8 +14,12 @@ from engine.kv_cache import KVCache
 
 class Executor:
     """
-    Phase2:只支持单请求、贪心解码。
+    Phase2:
+    只支持单请求、贪心解码。
     后面 scheduler 进来时只需要在外面把一堆 Request 丢进来即可。
+    
+    Phase3.2:
+    增加 stop条件 (eos/stop_token_ids)就提前停止
     """
     def __init__(self,
                  model_loader:ModelLoader,
@@ -24,9 +28,31 @@ class Executor:
         self.model = model_loader.get_model()
         self.tokenizer = tokenizer
         self.device = self.model.device # 与loader的device保持一致
-         
+    
+    def _resolve_eos_token_id(self,request:Request):
+        #优先从Request 上 显式指定 然后再从tokenizer取
+        if getattr(request,"eos_token_id",None) is not None:
+            return request.eos_token_id
+        return getattr(self.tokenizer,"eos_token_id",None)
+    
+    def _should_stop(self, request:Request, token_id:int) -> bool:
+        #优先stop_token_id 
+        if getattr(request,"stop_token_ids",None) is not None:
+            if token_id in request.stop_token_ids:
+                return True
+        
+        #然后再看stop_on_eos (默认True)
+        if getattr(request, "stop_on_eos", True):
+            eos_id = self._resolve_eos_token_id(request)
+            if eos_id is not None and token_id ==eos_id:
+                return True
+        
+        return False
+    
+    
+    
     @torch.no_grad()
-    def _prefil_step(self,
+    def _prefill_step(self,
                     request:Request):
         """
         Docstring for prefil_step
@@ -121,13 +147,22 @@ class Executor:
     def run(self,request: Request)->str:
     
         # 1. Prefill: 建立 KV Cache
-        next_token_id = self._prefil_step(request)
+        next_token_id = self._prefill_step(request)
 
-        # 2. Decode Loop
+        # 2. 如果prefill就 触发了stop（eos或者stop token id）立马结束
+        if self._should_stop(request= request,token_id= next_token_id):
+            request.finished = True
+            return self.tokenizer.decode(request.generated_ids)
+
+        # 3. Decode Loop
         for _ in range(request.max_new_tokens - 1):
             next_token_id = self._decode_step(next_token_id=next_token_id, kv_cache=request.kv_cache)
             request.generated_ids.append(next_token_id)
         
+            if self._should_stop(request= request, token_id= next_token_id):
+                break
+        
         request.finished = True
-        # 3. Decode text
+        
+        # 4. Decode text
         return self.tokenizer.decode(request.generated_ids)

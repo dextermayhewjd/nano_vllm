@@ -12,6 +12,7 @@ class Request:
     stop conditions 停下来的条件
     '''
     stop_token_ids: Optional[List[int]] = None
+    
     stop_on_eos: bool = True
     eos_token_id: Optional[int] = None  
     # 不填时，后续由 Executor/Tokenizer 推断    

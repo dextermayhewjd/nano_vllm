@@ -717,9 +717,37 @@ generated_ids: List[int] = field(default_factory=list) ✅
   ```
   必须抛出ValueError 否则失效
 
+# 2025-12-20
+## 3.2 Executor 升级 解决敲了个prompt帮我把我的话都说出来的情况 即遇到eos和特殊id要停止
 
+###  设计思路 利用request里放好的eos_token_id 或者tokenizer里面的 来给出
+再ddia 中 request carries stop和eos
+所以把stop和eos的信息应该放在request里
 
+而executor 不保存策略
+避免decoupled components 所以 tokenizer 不等于 stopping policy
 
+### 使用getattr
+```python
+getattr(obj, attr_name, default)
+
+等价于：
+if hasattr(obj, attr_name):
+    return obj.attr_name
+else:
+    return default
+eg.
+class A:
+    x = 10
+
+a = A()
+
+getattr(a, "x", None)   # 10
+getattr(a, "y", None)   # None（不会抛异常）
+```
+如果直接 a.y → AttributeError
+
+getattr(a, "y", None) → 安全返回 None
 
 
 
