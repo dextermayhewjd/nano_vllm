@@ -10,6 +10,8 @@ namespace llm::api {
         Engine();
         ~Engine();
         // 加上构造函数和析构函数
+
+        const char* Ping() const;
     };
 
 } // namespace llm::api

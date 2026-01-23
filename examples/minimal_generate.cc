@@ -4,6 +4,5 @@
 int main()
 {
     llm::api::Engine engine;
-    std::cout<<"smoke test:build works.\n";
-    return 0;
+    std::cout << "S00 step5: Engine::Ping() -> " << engine.Ping() << "\n";
 }
