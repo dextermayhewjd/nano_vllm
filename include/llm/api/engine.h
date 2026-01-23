@@ -1,5 +1,7 @@
 #pragma once
 
+# include "llm/utils/status.h"
+
 namespace llm::api {
 
 // S00 阶段：空壳类，只证明“API 形态 + include 路径”
@@ -11,7 +13,7 @@ namespace llm::api {
         ~Engine();
         // 加上构造函数和析构函数
 
-        const char* Ping() const;
+        llm::utils::Status Ping() const;
     };
 
 } // namespace llm::api
