@@ -5,13 +5,16 @@ int main()
 {
     llm::api::Engine engine;
     
-    auto status = engine.Ping();
-
-    if(!status.ok())
+    auto result = engine.Ping();
+    // 失败态获取信息
+    if(!result.ok())
     {
-        std::cerr<<"Ping failed:" <<status.message()<<"\n";
-
+        std::cerr<<"Ping failed:" <<result.status().message()<<"\n";
+        return 1;
     }
-    std::cout << "S00 step6: Engine::Ping() ok\n";
+
+    // 成功态获取信息
+    std::cout << "S00 step7: Engine::Ping() -> "
+            << result.value() << "\n";
   return 0;
 }

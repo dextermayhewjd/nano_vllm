@@ -13,7 +13,7 @@ namespace llm::api {
         ~Engine();
         // 加上构造函数和析构函数
 
-        llm::utils::Status Ping() const;
+        llm::utils::StatusOr<const char*> Ping() const;
     };
 
 } // namespace llm::api

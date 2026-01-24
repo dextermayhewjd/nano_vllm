@@ -16,6 +16,9 @@ set(CMAKE_CXX_STANDARD 20)
 # 否则 CMake 配置阶段直接失败（而不是偷偷降级）
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 开给vscode看
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # =========================
 # 可执行程序 target
 # =========================
@@ -67,4 +70,14 @@ target_include_directories(llm_engine
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+# test 相关的 同时也是option
+option(LLM_ENABLE_TESTS "Build unit tests" ON)
 
+
+# ===== Subdirectories =====
+
+# 加入 tests 子目录
+if (LLM_ENABLE_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
