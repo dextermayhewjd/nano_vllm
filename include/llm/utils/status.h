@@ -1,5 +1,7 @@
 #pragma once
+#include <cassert>
 #include <string>
+#include <optional>
 
 namespace llm::utils 
 {
@@ -35,24 +37,39 @@ template <typename T>
     
     public:
     // 构造失败态
-        StatusOr(Status status)
-        :status_(std::move(status)),has_value_(false){}
+        explicit StatusOr(Status status)
+        :status_(std::move(status)){
+            if(status_.ok())
+            {
+                assert(false && "StatusOr(Status) requires non-ok status");
+                status_ = Status("StatusOr constructed from OK Status");
+            }
+        }
+
     // 构造成功态    
-        StatusOr(T value)
-        :status_(),value_(std::move(value)),has_value_(true){}
+        explicit StatusOr(T value)
+        :status_(),value_(std::move(value)){}
         
         // bool ok不ok
-        bool ok()const {return status_.ok();}
-        const Status& status(){return status_;}
+        bool ok()const {return status_.ok()&&value_.has_value();}
+        const Status& status()const{return status_;}
 
         // 取值（ 1. 左值 2. const 加左值 3. 右值）
-        T& value() & { return value_; }
-        const T& value() const & { return value_; }
-        T&& value() && { return std::move(value_); }
+        T& value() & {
+            assert(ok() && "StatusOr has no value");
+            return *value_;
+        }
+        const T& value() const & {
+            assert(ok() && "StatusOr has no value");
+            return *value_;
+        }
+        T&& value() && {
+            assert(ok() && "StatusOr has no value");
+            return std::move(*value_);
+        }
     private:
         Status status_;
-        T value_;
-        bool has_value_{false};
+        std::optional<T> value_;
     };
 
 } // namespace llm::utils
