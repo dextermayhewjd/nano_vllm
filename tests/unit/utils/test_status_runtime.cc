@@ -22,5 +22,20 @@ TEST(StatusOrTest,okValueBasic){
     StatusOr<int> r(42);
     EXPECT_TRUE(r.ok());
     EXPECT_EQ(r.value(),42);
-    
 }
+
+TEST(StatusOrTest, OkAlsoHasOkStatusAndEmptyMessage)
+{
+    StatusOr<int> r(7);
+    EXPECT_TRUE(r.ok());
+    EXPECT_TRUE(r.status().ok());
+    EXPECT_EQ(r.status().message(), "");
+}
+
+TEST(StatusOrTest,ErrorStatusPropagates)
+{
+    StatusOr<int> r(Status("boom"));
+    EXPECT_FALSE(r.ok());
+    EXPECT_EQ(r.status().message(), "boom");
+}
+

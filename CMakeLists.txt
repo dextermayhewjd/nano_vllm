@@ -75,7 +75,7 @@ option(LLM_ENABLE_TESTS "Build unit tests" ON)
 
 
 # ===== Subdirectories =====
-
+# 如果开了option 就要编译下面的
 # 加入 tests 子目录
 if (LLM_ENABLE_TESTS)
   enable_testing()

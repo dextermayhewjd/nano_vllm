@@ -1,2 +1,1 @@
-
-add_test(NAME status COMMAND test_status)
+add_subdirectory(utils)

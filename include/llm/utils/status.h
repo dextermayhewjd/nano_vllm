@@ -2,7 +2,7 @@
 #include <cassert>
 #include <string>
 #include <optional>
-
+#include <utility>   // ✅ 为 std::move 提供声明
 namespace llm::utils 
 {
 
@@ -41,30 +41,30 @@ template <typename T>
         :status_(std::move(status)){
             if(status_.ok())
             {
-                assert(false && "StatusOr(Status) requires non-ok status");
-                status_ = Status("StatusOr constructed from OK Status");
+            status_ = Status("StatusOr(Status) requires non-ok status");
+            assert(false && "StatusOr(Status) requires non-ok status");           
             }
         }
-
     // 构造成功态    
-        explicit StatusOr(T value)
+        StatusOr(T value)
         :status_(),value_(std::move(value)){}
         
+
         // bool ok不ok
-        bool ok()const {return status_.ok()&&value_.has_value();}
+        bool ok()const {return value_.has_value();}
         const Status& status()const{return status_;}
 
         // 取值（ 1. 左值 2. const 加左值 3. 右值）
         T& value() & {
-            assert(ok() && "StatusOr has no value");
+            assert(ok());
             return *value_;
         }
         const T& value() const & {
-            assert(ok() && "StatusOr has no value");
+            assert(ok());
             return *value_;
         }
         T&& value() && {
-            assert(ok() && "StatusOr has no value");
+            assert(ok());
             return std::move(*value_);
         }
     private:

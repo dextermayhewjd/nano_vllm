@@ -4,8 +4,15 @@ namespace llm::api {
     Engine::Engine() = default;
     Engine::~Engine() = default;
 
-    llm::utils::StatusOr<const char*> Engine::Ping() const{
+    llm::utils::StatusOr<const char*> Engine::Ping() const
+    {
         return "pong"; //pong 这里"pong" → const char* 自动构造
         // 永远成功
+    
+        // return llm::utils::StatusOr<const char*>
+        // (
+        // llm::utils::Status("backend not ready")
+        // );
+        // 模拟失败路径
     }
 }// namespace llm::api
