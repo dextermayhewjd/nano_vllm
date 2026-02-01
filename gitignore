@@ -1,0 +1,38 @@
+# =========================
+# Build directories (CMake)
+# =========================
+build/
+build-*/
+cmake-build-*/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# =========================
+# Compiler outputs
+# =========================
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+.clangd/
+.cache/
+
+# =========================
+# OS junk
+# =========================
+.DS_Store
+Thumbs.db
