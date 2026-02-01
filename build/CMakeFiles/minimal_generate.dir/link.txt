@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/minimal_generate.dir/examples/minimal_generate.cc.o -o minimal_generate 
