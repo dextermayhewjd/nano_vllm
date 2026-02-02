@@ -3,6 +3,15 @@
 
 int main(){
     llm::api::Engine engine;
-    std::cout<<"S00 smoke test: build works.\n"<< engine.Ping()<<std::endl;
+
+    auto status = engine.Ping();
+    if(!status.ok())
+    {
+        std::cerr << "Ping failed: " << status.message() << "\n";
+        return 1;
+    }
+
+    std::cout<<"S00 smoke test: engine::ping() ok\n"
+             <<std::endl;
     return 0;
 }

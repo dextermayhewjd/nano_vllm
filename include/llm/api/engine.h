@@ -1,5 +1,6 @@
 #pragma once
 
+#include "llm/utils/status.h"
 namespace llm::api{
 
 
@@ -9,7 +10,7 @@ namespace llm::api{
         Engine();
         ~Engine();
 
-        const char* Ping()const;
+        llm::utils::Status Ping()const;
     };
 
 } // namespace llm:api
