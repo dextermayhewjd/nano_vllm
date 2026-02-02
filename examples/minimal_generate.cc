@@ -3,6 +3,6 @@
 
 int main(){
     llm::api::Engine engine;
-    std::cout<<"S00 smoke test: build works.\n"<<std::endl;
+    std::cout<<"S00 smoke test: build works.\n"<< engine.Ping()<<std::endl;
     return 0;
 }
