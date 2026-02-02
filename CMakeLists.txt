@@ -10,3 +10,10 @@ target_sources(minimal_generate
 PRIVATE
 examples/minimal_generate.cc
 )
+
+add_library(llm_engine 
+src/api/engine.cc
+)
+
+target_link_libraries(minimal_generate PRIVATE llm_engine)
+
