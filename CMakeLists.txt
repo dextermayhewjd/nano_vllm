@@ -15,5 +15,10 @@ add_library(llm_engine
 src/api/engine.cc
 )
 
+target_include_directories(llm_engine
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include 
+)
+
 target_link_libraries(minimal_generate PRIVATE llm_engine)
 
