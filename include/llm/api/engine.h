@@ -8,13 +8,14 @@ namespace llm::api{
     
     public:   
         // 构造不再直接暴露
-        static llm::utils::StatusOr<std::unique_ptr<Engine>> Create(bool simulate_failure = false);   
+        static llm::utils::StatusOr<std::unique_ptr<Engine>> Create(std::string model_path);   
         ~Engine();
 
         llm::utils::StatusOr<const char*> Ping()const;
 
     private:
-        Engine(); // 构造函数是 private：只能 Create 内部用
+        explicit Engine(std::string model_path);
+        std::string model_path_;
     };
 
 } // namespace llm:api

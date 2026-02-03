@@ -5,15 +5,15 @@ int main(){
         
     // 1) 先故意触发一次失败：验证错误链路
     {
-    auto bad_or = llm::api::Engine::Create(true);
+    auto bad_or = llm::api::Engine::Create("");
     if (bad_or.ok()) {
-        std::cerr << "Unexpected: Create(true) succeeded\n";
+        std::cerr <<  "Unexpected: Create(\"\") succeeded\n";
         return 1;
     }
     std::cerr << "Expected failure: " << bad_or.status().message() << "\n";
     }
 
-    auto engine_or = llm::api::Engine::Create();
+    auto engine_or = llm::api::Engine::Create("dummy_model_path");
 
     if(!engine_or.ok())
     {
