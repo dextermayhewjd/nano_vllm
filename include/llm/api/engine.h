@@ -2,6 +2,8 @@
 #include <memory>
 #include "llm/utils/status.h"
 #include "llm/api/types.h" 
+#include "llm/api/request.h"
+
 namespace llm::api{
 
 
@@ -13,6 +15,8 @@ namespace llm::api{
         ~Engine();
 
         llm::utils::StatusOr<const char*> Ping()const;
+
+        llm::utils::StatusOr<GenerateResult> Generate(const GenerateRequest& req) const;
 
     private:
         explicit Engine(std::string model_path);

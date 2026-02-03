@@ -31,6 +31,21 @@ int main(){
     // 注意：unique_ptr 只能 move，所以要用 std::move(engine_or).value()
     auto engine = std::move(engine_or).value();
 
+
+    llm::api::GenerateRequest req;
+    req.prompt = "Hello from S00!";
+    req.sampling.max_new_tokens = 16;
+    req.sampling.temperature = 0.8f;
+
+    auto gen_or = engine->Generate(req);
+    if (!gen_or.ok()) {
+        std::cerr << "Generate failed: " << gen_or.status().message() << "\n";
+    return 1;
+    }
+
+    std::cout << gen_or.value().text << "\n";
+
+
     // ===== 3) 调用一个最小方法，验证“调用 + 返回值 + StatusOr”链路 =====
     auto ping_or = engine->Ping();
     if (!ping_or.ok()) {

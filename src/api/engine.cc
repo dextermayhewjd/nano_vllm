@@ -1,6 +1,9 @@
 #include "llm/api/engine.h"
+#include "llm/api/request.h"
+#include "llm/api/types.h"
 #include "llm/utils/status.h"
 #include <memory>
+#include <sstream>
 
 namespace llm::api {
 
@@ -20,8 +23,31 @@ namespace llm::api {
     
     Engine::~Engine() = default;
 
-    llm::utils::StatusOr<const char*> Engine::Ping()const{
+    llm::utils::StatusOr<const char*> Engine::Ping()const
+    {
         return "pong";
+    }
+
+
+    llm::utils::StatusOr<llm::api::GenerateResult>
+    Engine::Generate(const llm::api::GenerateRequest& req)const
+    {
+        if(req.prompt.empty())
+        {
+            return llm::utils::StatusOr<llm::api::GenerateResult>{
+                llm::utils::Status("GenerateRequest.prompt is empty")
+            };
+        }
+
+    std::ostringstream oss;
+    oss << "=== S00 stub generate ===\n"
+        << "prompt: " << req.prompt << "\n"
+        << "max_new_tokens: " << req.sampling.max_new_tokens << "\n"
+        << "temperature: " << req.sampling.temperature << "\n";
+
+    GenerateResult out;
+    out.text = oss.str();
+    return out; // 成功态（当前 StatusOr(T) 不是 explicit，所以可以直接 return out）
     }
 
 } // namespace llm::api
