@@ -6,10 +6,11 @@
 #include <sstream>
 
 namespace llm::api {
-
+    // 对内的调用
     Engine::Engine(std::string model_path)
         :model_path_(std::move(model_path)){}
 
+    // 对外的创建Engine api
     llm::utils::StatusOr<std::unique_ptr<Engine>>Engine::Create(EngineConfig cfg)
     {
         if(cfg.model_path.empty()) // 这里是string的function吗 是的 这里是用来检查是否满足成功条件
@@ -28,7 +29,11 @@ namespace llm::api {
         return "pong";
     }
 
-
+    // 基于request创建 result
+    // 所有有问题的过程 都靠着 
+    // 1. 检查输入本身 -> 
+    // 2.要么生成status  （ 注意因为explicit原因 失败状态需要 显示构造 -> 
+    // 3.正常返回的值直接包转化为statusOR< 里面 >
     llm::utils::StatusOr<llm::api::GenerateResult>
     Engine::Generate(const llm::api::GenerateRequest& req)const
     {
