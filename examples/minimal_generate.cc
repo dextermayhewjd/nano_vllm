@@ -2,34 +2,44 @@
 #include "llm/api/engine.h"
 
 int main(){
-        
-    // 1) 先故意触发一次失败：验证错误链路
+
+    // ===== 1) 先验证失败路径：model_path 为空应当失败 =====
     {
-    auto bad_or = llm::api::Engine::Create("");
-    if (bad_or.ok()) {
-        std::cerr <<  "Unexpected: Create(\"\") succeeded\n";
+        llm::api::EngineConfig bad_cfg;
+        bad_cfg.model_path = "";  // 空字符串 -> 期望 Create 失败
+
+        auto bad_or = llm::api::Engine::Create(bad_cfg);
+        if (bad_or.ok()) {
+        // 这一行这会应该不运行
+        std::cerr << "Unexpected: Create(empty model_path) succeeded\n";
         return 1;
-    }
-    std::cerr << "Expected failure: " << bad_or.status().message() << "\n";
+        }
+        std::cerr << "Expected failure: " << bad_or.status().message() << "\n";
     }
 
-    auto engine_or = llm::api::Engine::Create("dummy_model_path");
+        // ===== 2) 再验证成功路径：model_path 非空应当成功 =====
+    llm::api::EngineConfig cfg;
+    cfg.model_path = "dummy_model_path";  // Phase0 只是占位字符串
 
-    if(!engine_or.ok())
-    {
+    auto engine_or = llm::api::Engine::Create(cfg);
+    if (!engine_or.ok()) {
+        // 这里不应该运行
         std::cerr << "Create failed: " << engine_or.status().message() << "\n";
         return 1;
     }
 
+    // 注意：unique_ptr 只能 move，所以要用 std::move(engine_or).value()
     auto engine = std::move(engine_or).value();
-     // 拿到 std::unique_ptr<Engine>
-    auto ping_or = engine->Ping();
-    if (!ping_or.ok()) 
-    {
-        std::cerr << "Ping failed: " << ping_or.status().message() << "\n";
-    return 1;
-    }   
 
-    std::cout << "S00 step8: Engine::Create ok, Ping -> " << ping_or.value() << "\n";
+    // ===== 3) 调用一个最小方法，验证“调用 + 返回值 + StatusOr”链路 =====
+    auto ping_or = engine->Ping();
+    if (!ping_or.ok()) {
+        std::cerr << "Ping failed: " << ping_or.status().message() << "\n";
+        return 1;
+    }
+
+    std::cout << "Phase0 minimal_generate: Create ok, Ping -> "
+                << ping_or.value() << "\n";
+
     return 0;
 }

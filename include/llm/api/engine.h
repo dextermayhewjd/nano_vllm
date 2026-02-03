@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include "llm/utils/status.h"
+#include "llm/api/types.h" 
 namespace llm::api{
 
 
@@ -8,7 +9,7 @@ namespace llm::api{
     
     public:   
         // 构造不再直接暴露
-        static llm::utils::StatusOr<std::unique_ptr<Engine>> Create(std::string model_path);   
+        static llm::utils::StatusOr<std::unique_ptr<Engine>> Create(EngineConfig cfg);   
         ~Engine();
 
         llm::utils::StatusOr<const char*> Ping()const;
