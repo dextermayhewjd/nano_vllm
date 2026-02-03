@@ -2,16 +2,23 @@
 #include "llm/api/engine.h"
 
 int main(){
-    llm::api::Engine engine;
+    auto engine_or = llm::api::Engine::Create();
 
-    auto status = engine.Ping();
-    if(!status.ok())
+    if(!engine_or.ok())
     {
-        std::cerr << "Ping failed: " << status.message() << "\n";
+        std::cerr << "Create failed: " << engine_or.status().message() << "\n";
         return 1;
     }
 
-    std::cout<<"S00 smoke test: engine::ping() ok\n"
-             <<std::endl;
+    auto engine = std::move(engine_or).value();
+     // 拿到 std::unique_ptr<Engine>
+    auto ping_or = engine->Ping();
+    if (!ping_or.ok()) 
+    {
+        std::cerr << "Ping failed: " << ping_or.status().message() << "\n";
+    return 1;
+    }   
+
+    std::cout << "S00 step8: Engine::Create ok, Ping -> " << ping_or.value() << "\n";
     return 0;
 }
