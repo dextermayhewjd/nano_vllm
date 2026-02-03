@@ -8,7 +8,7 @@ namespace llm::api{
     
     public:   
         // 构造不再直接暴露
-        static llm::utils::StatusOr<std::unique_ptr<Engine>> Create();   
+        static llm::utils::StatusOr<std::unique_ptr<Engine>> Create(bool simulate_failure = false);   
         ~Engine();
 
         llm::utils::StatusOr<const char*> Ping()const;

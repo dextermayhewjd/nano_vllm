@@ -5,8 +5,14 @@
 namespace llm::api {
 
     Engine::Engine() = default;
-    llm::utils::StatusOr<std::unique_ptr<Engine>>Engine::Create()
+    llm::utils::StatusOr<std::unique_ptr<Engine>>Engine::Create(bool simulate_failure)
     {
+        if(simulate_failure)
+        {
+            return llm::utils::StatusOr<std::unique_ptr<Engine>>{
+                llm::utils::Status("simulated init failure")
+            };
+        }   
         return std::unique_ptr<Engine>(new Engine());
     }
     
