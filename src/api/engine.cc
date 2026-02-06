@@ -1,6 +1,7 @@
 #include "llm/api/engine.h"
 #include "llm/api/request.h"
 #include "llm/api/types.h"
+#include "llm/utils/logging.h"
 #include "llm/utils/status.h"
 #include <memory>
 #include <sstream>
@@ -21,10 +22,13 @@ namespace llm::api {
     {
         if(cfg.model_path.empty()) // 这里是string的function 是用来检查是否满足成功条件
         {
+            llm::utils::Warn("Engine::Create 失败 model_path 是空的");
             return llm::utils::StatusOr<std::unique_ptr<Engine>>{
                 llm::utils::Status("model_path is empty")
             };
         }   
+
+        llm::utils::Info("Engine::Create 成功 ");
         return std::unique_ptr<Engine>(new Engine(std::move(cfg.model_path)));
     }
     
@@ -51,11 +55,13 @@ namespace llm::api {
     {
         if(req.prompt.empty())
         {
+            llm::utils::Warn("Engine:: Generate 失败 prompt本身是空的");
             return llm::utils::StatusOr<llm::api::GenerateResult>{
                 llm::utils::Status("GenerateRequest.prompt is empty")
             };
         }
-
+    
+    llm::utils::Info("Engine::Generate ok (开始输出stub)");
     std::ostringstream oss;
     oss << "=== S00 stub generate ===\n"
         << "prompt: " << req.prompt << "\n"

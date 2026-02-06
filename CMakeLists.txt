@@ -11,8 +11,11 @@ PRIVATE
 examples/minimal_generate.cc
 )
 
-add_library(llm_engine 
-src/api/engine.cc
+add_library(llm_engine)
+target_sources(llm_engine
+  PRIVATE
+    src/api/engine.cc
+    src/utils/logging.cc 
 )
 
 target_include_directories(llm_engine

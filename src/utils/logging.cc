@@ -9,16 +9,14 @@ namespace llm::utils
     {
         std::atomic<LogLevel> g_level{LogLevel::kInfo};
     
-        const char* LevelToString(LogLevel level)
+        constexpr std::string_view ToTag(LogLevel level) 
         {
-            switch (level)
-            {
-                case llm::utils::LogLevel::kDebug: return "DEBUG";
-                case llm::utils::LogLevel::kInfo: return "INFO";
-                case llm::utils::LogLevel::kWarn: return "WARN";
-                case llm::utils::LogLevel::kError: return "ERROR";
+            switch (level) {
+                case LogLevel::kDebug: return "DEBUG";
+                case LogLevel::kInfo:  return "INFO";
+                case LogLevel::kWarn:  return "WARN";
+                case LogLevel::kError: return "ERROR";
             }
-            // switch case 的语法我是知道的
             return "UNKNOWN";
         }
     }//namespace
@@ -33,7 +31,7 @@ namespace llm::utils
         return g_level.load(std::memory_order_relaxed);
     }
 
-    void log(LogLevel level, std::string_view msg)
+    void Log(LogLevel level, std::string_view msg)
     {
           // 级别过滤：level < 当前阈值 => 不输出
         if (static_cast<int>(level) < static_cast<int>(GetLogLevel()))
@@ -41,8 +39,7 @@ namespace llm::utils
             return;
         }
           // S00：先全部输出到 stderr，避免 stdout 和程序输出混在一起不好读
-        std::cerr << "[" << LevelToString(level) << "] " << msg << "\n";
-    }
+        std::cerr << "[" << ToTag(level) << "] " << msg << "\n";    }
 
 
 } // namespace::utils
